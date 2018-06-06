@@ -1,0 +1,88 @@
+---
+title: "Machine Learning Course Project - Prediction"
+author: "PC"
+date: "5/23/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project Summary
+
+This is a machine learning project in Coursera's Data Science specialization. The purpose of this project is to predict the exercise given accelerometer data on different parts of the subjects' bodies.
+
+## Loading Required Libraries
+First, we need to have required libraries ready. The code belows shows we need caret (for machine learning tasks) and rpart (for decision tree learning) libraries. We also set seed values for reproducibility.
+```{r loadlib, cache=TRUE, results='hide'}
+library(caret)
+library(rpart)
+set.seed(1234)
+```
+
+## Loading Data
+Training and testing data are previously downloaded from https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv (for training data) and https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv (for testing data).
+```{r loaddata, cache=TRUE, results='hide'}
+training <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+```
+```{r lookdata, cache=TRUE}
+dim(training)
+dim(testing)
+```
+
+From initial look on the data, this dataset is high-dimensional. There are 159 predictors to predict 5 classes of exercise: A, B, C, D, and E. The testing dataset has only 20 instances, which should be reserved for the quiz portion of project. We have to divide training dataset into train and test, using the 70:30 ratio.
+
+```{r cutdata, cache=TRUE}
+inTrain <- createDataPartition(training$classe, p=0.7, list=FALSE)
+Traindata <- training[inTrain,]
+Testdata <- training[-inTrain,]
+dim(Traindata)
+dim(Testdata)
+```
+
+## Cross Validation and Model Selection
+Within our training portion of the train data, we decide to perform k-fold cross validation. K is given the value of 10. Since there are several machine learning methods available, we will try several methods and compare them. The best machine learning method on the validation test set will be chosen to predict the 20  test instances for quiz.
+
+Here we set training control using the trainControl function. The method chosen is cross-validation and k is set to be 10.
+
+```{r traincontrol, cache=TRUE}
+control <- trainControl(method="cv", number=10) # set up cross-validation parameter for training
+```
+
+## Models
+
+Since the prediction outcome is categorical, I want to explore machine learning techniques within the tree family which include prediction tree, random forests (trees with bagging), and gbm (trees with boosting).
+
+```{r tree, cache=TRUE}
+modTree <- train(classe~., method="rpart", trControl=control, data=Traindata) # train model 1 using rpart
+modTree$finalModel # show final model
+
+library(rattle)
+fancyRpartPlot(modTree$finalModel, main="Rpart Tree", sub="") # Print out final model
+predTree <- predict(modTree, newdata=na.omit(Testdata)) # Test model 1's accuracy with validation data
+confusionMatrix(predTree, na.omit(Testdata)$classe) # Calculate confusion matrix and accuracy
+```
+
+Prediction tree got 63.39% accuracy. The accuracy is not very high. Perhaps we can try the bootstrapped version of the tree, random forest.
+
+```{r rf, cache=TRUE}
+modRF <- train(classe~., method="rf", trControl=control, data=Traindata) # train model 2 using random forests
+modRF$finalModel # show final model
+
+getTree(modRF$finalModel, k=100)
+
+predRF <- predict(modRF, na.omit(Testdata)) # Test model 2's accuracy with validation data
+confusionMatrix(predRF, na.omit(Testdata)$classe) # calculate confusion matrix and accuracy of model 2
+```
+
+Random Forest yields us quite high accuracy (99.18%). It seems that random forest gives us pretty good machine learning outcome. Therefore, we'll choose the model generated from random forest as our prediction model.
+
+<!-- ```{r gbm, cache=TRUE, echo=FALSE} -->
+<!-- modGBM <- train(classe~., method="gbm", trControl=control, data=Traindata) -->
+<!-- print(modGBM) -->
+
+<!-- predGBM <- predict(modGBM, na.omit(Testdata)) -->
+<!-- confusionMatrix(predGBM, na.omit(Testdata)$classe) -->
+<!-- ``` -->
